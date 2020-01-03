@@ -1,0 +1,16 @@
+recursive-include */resources *
+recursive-include bin *
+recursive-include test *
+recursive-include docs *
+
+include LICENSE
+include MANIFEST.in
+include README.rst
+include *requirements.txt
+
+include setup.py
+include setup.cfg
+
+global-exclude __pycache__
+global-exclude __pycache__/*
+global-exclude *.exe
