@@ -3,8 +3,22 @@ import json
 import functools
 
 
-__all__ = ['Serializer', 'register', 'unregister', 'get_serializer', 'dumps', 'dump', 'loads', 'load',
-           'default', 'object_hook']
+__all__ = ['Serializer', 'register', 'unregister', 'get_serializer', 'RegisterMetaclass', 'Message',
+           'dumps', 'dump', 'loads', 'load', 'default', 'object_hook']
+
+
+def base_create_object(cls):
+    """Primitive create object. This will work if parent class overrides __new__ with *args, **kwargs."""
+    # Create the object without failing from __init__ args (if parent class overrides __new__ with *args, **kwargs)
+    obj = cls.__new__(cls)
+
+    # Try to initialize properly (may fail because of no args)
+    try:
+        obj.__init__()
+    except (TypeError, Exception):
+        pass
+
+    return obj
 
 
 # ========== Serializers ==========
@@ -33,7 +47,14 @@ class Serializer(object):
         return obj.__getstate__()
 
     def decode(self, obj):
-        new_obj = self.cls()
+        try:
+            new_obj = self.cls()
+        except Exception as err:
+            try:
+                new_obj = base_create_object(self.cls)
+            except (ValueError, TypeError, Exception):
+                raise err
+
         new_obj.__setstate__(obj)
         return new_obj
 
@@ -121,6 +142,58 @@ def get_serializer(cls_obj):
             pass
 
     return first_sub
+
+
+# ========== Default Message Object ==========
+class RegisterMetaclass(type):
+    """Metaclass that automatically registers subclasses """
+    def __new__(mcs, name, bases, class_dict):
+        cls = type.__new__(mcs, name, bases, class_dict)
+        register(cls)
+        return cls
+
+
+class Message(metaclass=RegisterMetaclass):
+    def __new__(cls, *args, **kwargs):
+        """Create new object (This works with base_create_object)"""
+        obj = super().__new__(cls)
+        return obj
+
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        if len(kwargs) > 0:
+            self.update(kwargs)
+
+    def as_dict(self):
+        return {k: v for k, v in self.__dict__.items() if not k.startswith('_') and not k[0].isupper()}
+
+    def update(self, d):
+        for k, v in d.items():
+            setattr(self, k, v)
+
+    @classmethod
+    def from_dict(cls, d):
+        obj = base_create_object(cls)
+        obj.update(d)
+        return obj
+
+    def __getitem__(self, item):
+        return getattr(self, item)
+
+    def __setitem__(self, key, value):
+        setattr(self, key, value)
+
+    def __eq__(self, other):
+        try:
+            return self.__getstate__() == other.__getstate__()
+        except:
+            return False
+
+    def __getstate__(self):
+        return self.as_dict()
+
+    def __setstate__(self, state):
+        self.update(state)
 
 
 # ========== JSON Parsers ==========

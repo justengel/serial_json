@@ -1,4 +1,33 @@
 
+def test_Message():
+    import serial_json
+
+    class Item(serial_json.Message):  # Base classes of Message are automatically registered
+        def __init__(self, name, value):
+            super().__init__()
+            self.name = name
+            self.value = value
+
+    item = Item('abc', 123)
+    item2 = serial_json.loads(serial_json.dumps(item))
+    assert item == item2
+    assert item.name == item2.name
+    assert item.value == item2.value
+
+    # Test additional messages with only using kwargs to set attrs
+    class NewItem(serial_json.Message):  # Base classes of Message are automatically registered
+        def __init__(self, name2, value2):
+            super().__init__(name2=name2, value2=value2)
+
+    new_item = NewItem('abc', 123)
+    new_item2 = serial_json.loads(serial_json.dumps(new_item))
+    assert new_item != item
+    assert new_item2 != item2
+    assert new_item == new_item2
+    assert new_item['name2'] == new_item2.name2
+    assert new_item.value2 == new_item2.value2
+
+
 def test_bytes():
     import serial_json as json
 
@@ -32,6 +61,7 @@ def test_datetime():
 
 
 if __name__ == '__main__':
+    test_Message()
     test_bytes()
     test_date()
     test_time()
