@@ -1,4 +1,3 @@
-import base64
 from serial_json.interface import register
 
 

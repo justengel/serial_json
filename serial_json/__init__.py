@@ -1,5 +1,5 @@
-from serial_json.interface import Message, Serializer, register, unregister, get_serializer, dumps, dump, loads, load, \
-    default, object_hook
+from serial_json.interface import Message, Serializer, register, unregister, get_serializer, base_create_object, \
+    dumps, dump, loads, load, default, object_hook
 
 try:
     import serial_json.bytes_support
@@ -30,6 +30,13 @@ except (ImportError, Exception):
 
 
 try:
-    import serial_json.numpy_support
+    from serial_json.numpy_support import np_to_dict, np_from_dict, rec_from_dict
 except (ImportError, Exception):
-    pass
+    def np_to_dict(*args, **kwargs):
+        raise EnvironmentError('Could not properly setup numpy utilities.')
+
+    def np_from_dict(*args, **kwargs):
+        raise EnvironmentError('Could not properly setup numpy utilities.')
+
+    def rec_from_dict(*args, **kwargs):
+        raise EnvironmentError('Could not properly setup numpy utilities.')

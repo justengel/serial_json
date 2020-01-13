@@ -3,7 +3,8 @@ import json
 import functools
 
 
-__all__ = ['Serializer', 'register', 'unregister', 'get_serializer', 'RegisterMetaclass', 'Message',
+__all__ = ['Serializer', 'register', 'unregister', 'get_serializer',
+           'base_create_object', 'RegisterMetaclass', 'Message',
            'dumps', 'dump', 'loads', 'load', 'default', 'object_hook']
 
 
