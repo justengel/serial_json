@@ -1,4 +1,5 @@
-from serial_json.interface import Message, Serializer, register, unregister, get_serializer, base_create_object, \
+from serial_json.interface import Serializer, register, unregister, get_serializer, \
+    base_create_object, RegisterMetaclass, Message, \
     dumps, dump, loads, load, default, object_hook
 
 try:
