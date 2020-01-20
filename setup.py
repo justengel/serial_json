@@ -34,7 +34,7 @@ if __name__ == "__main__":
     url = meta['url']
     author = meta['author']
     author_email = meta['author_email']
-    keywords = 'JSON Serialize Deserialize'
+    keywords = 'JSON Serialize Deserialize numpy datetime'
     packages = find_packages(exclude=('tests', 'bin'))
 
     # Extensions
