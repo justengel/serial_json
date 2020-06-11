@@ -74,6 +74,11 @@ def make_date(date_string, formats=None):
         except (TypeError, ValueError, Exception):
             pass
 
+    try:  # Try ISO format
+        return datetime.datetime.fromisoformat(date_string)
+    except:
+        pass
+
     raise ValueError('Invalid date format {}. Allowed formats are {}'.format(repr(date_string), repr(formats)))
 
 
