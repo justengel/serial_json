@@ -1,6 +1,8 @@
 from serial_json.interface import Serializer, register, unregister, get_serializer, \
-    base_create_object, RegisterMetaclass, Message, \
+    base_create_object, RegisterMetaclass, \
     dumps, dump, loads, load, default, object_hook
+
+from .dataclasses import MISSING, field, field_property, DataclassMeta, DataClass, dataclass, Message
 
 try:
     import serial_json.bytes_support

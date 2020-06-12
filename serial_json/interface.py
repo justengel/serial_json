@@ -4,7 +4,7 @@ import functools
 
 
 __all__ = ['Serializer', 'register', 'unregister', 'get_serializer',
-           'base_create_object', 'RegisterMetaclass', 'Message',
+           'base_create_object', 'RegisterMetaclass',
            'dumps', 'dump', 'loads', 'load', 'default', 'object_hook']
 
 
@@ -37,7 +37,7 @@ class Serializer(object):
     """
     def __init__(self, cls, encode=None, decode=None):
         self.cls = cls
-        self.serializer_name = '{}.{}'.format(self.cls.__module__, self.cls.__name__)
+        self.serializer_name = getattr(cls, '__qualname__', '{}.{}'.format(cls.__module__, cls.__name__))
 
         if encode is not None:
             self.encode = encode
@@ -152,49 +152,6 @@ class RegisterMetaclass(type):
         cls = type.__new__(mcs, name, bases, class_dict)
         register(cls)
         return cls
-
-
-class Message(metaclass=RegisterMetaclass):
-    def __new__(cls, *args, **kwargs):
-        """Create new object (This works with base_create_object)"""
-        obj = super().__new__(cls)
-        return obj
-
-    def __init__(self, *args, **kwargs):
-        super().__init__()
-        if len(kwargs) > 0:
-            self.update(kwargs)
-
-    def as_dict(self):
-        return {k: v for k, v in self.__dict__.items() if not k.startswith('_') and not k[0].isupper()}
-
-    def update(self, d):
-        for k, v in d.items():
-            setattr(self, k, v)
-
-    @classmethod
-    def from_dict(cls, d):
-        obj = base_create_object(cls)
-        obj.update(d)
-        return obj
-
-    def __getitem__(self, item):
-        return getattr(self, item)
-
-    def __setitem__(self, key, value):
-        setattr(self, key, value)
-
-    def __eq__(self, other):
-        try:
-            return self.__getstate__() == other.__getstate__()
-        except:
-            return False
-
-    def __getstate__(self):
-        return self.as_dict()
-
-    def __setstate__(self, state):
-        self.update(state)
 
 
 # ========== JSON Parsers ==========
