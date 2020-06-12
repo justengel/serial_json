@@ -31,8 +31,11 @@ class field(object):
         type (object/type): Field type. Used in __init__ doc string and annotation.
     """
     def __init__(self, default=MISSING, default_factory=MISSING, repr=True, hash=None, init=True, compare=True,
-                 metadata=None, dict=True, skip_dict=MISSING, skip_repr=MISSING, name=MISSING, type=Any, **kwargs):
+                 metadata=None, dict=True, skip_dict=MISSING, skip_repr=MISSING, name=MISSING, type=Any, doc='',
+                 **kwargs):
         super().__init__()
+        self.__doc__ = doc
+
         self.default = default
         self.default_factory = default_factory
         self.repr = repr
@@ -142,7 +145,7 @@ class field(object):
 
 class field_property(field):
     """Field that works as a property."""
-    def __init__(self, fget=None, fset=None, fdel=None,
+    def __init__(self, fget=None, fset=None, fdel=None, doc='',
                  default=MISSING, default_factory=MISSING, repr=True, hash=None, init=True, compare=True,
                  metadata=None, dict=True, skip_dict=MISSING, skip_repr=MISSING, name=MISSING, type=None, **kwargs):
         self.fget = fget
@@ -150,7 +153,7 @@ class field_property(field):
         self.fdel = fdel
         super().__init__(default=default, default_factory=default_factory, repr=repr, hash=hash, init=init,
                          compare=compare, metadata=metadata, dict=dict, skip_dict=skip_dict, skip_repr=skip_repr,
-                         name=name, type=type, **kwargs)
+                         name=name, type=type, doc=doc, **kwargs)
 
     def __get__(self, obj, objtype=None):
         if obj is None:
