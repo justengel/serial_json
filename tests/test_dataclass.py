@@ -347,6 +347,52 @@ def test_dataclass_nested():
     assert loaded.point.z == m2.point.z
 
 
+def test_dataclass_json():
+    from serial_json import dumps, loads, dataclass, field_property
+
+    @dataclass
+    class Point:
+        x: int
+        y: int
+
+        @field_property(default=1)
+        def z(self):
+            return self._z
+
+        @z.setter
+        def z(self, value):
+            self._z = value
+
+    @dataclass
+    class Location:
+        name: str
+        point: Point = Point(0, 0, 0)
+
+        @field_property(default=Point(1, 1, 0))
+        def point2(self):
+            return self._point2
+
+        @point2.setter
+        def point2(self, value):
+            if isinstance(value, (list, tuple)) and len(value) >= 2:
+                value = Point(*value)
+            elif isinstance(value, dict):
+                value = Point(**value)
+
+            if not isinstance(value, Point):
+                raise TypeError('Given value must be a Point!')
+            self._point2 = value
+
+    m2 = Location('hello')
+    text = m2.json()
+    assert isinstance(text, str)
+    assert 'name' in text
+
+    m3 = Location.from_json(text)
+    assert isinstance(m3, Location)
+    assert m3 == m2
+
+
 if __name__ == '__main__':
     test_dataclass_func()
     test_dataclass_property()
@@ -356,5 +402,6 @@ if __name__ == '__main__':
     test_dataclass_do_not_replace()
     test_dataclass_serial_json()
     test_dataclass_nested()
+    test_dataclass_json()
 
     print('All tests finished successfully!')

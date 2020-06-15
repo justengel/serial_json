@@ -4,7 +4,7 @@ from inspect import signature, Signature, Parameter
 from typing import Any, Callable
 from collections import OrderedDict
 
-from .interface import register
+from .interface import register, dumps, loads
 
 
 __all__ = ['MISSING', 'field', 'field_property', 'DataclassMeta', 'DataClass', 'dataclass', 'Message']
@@ -241,12 +241,17 @@ class DataclassMeta(type):
             except AttributeError:
                 pass
 
-        if dict and 'dict' not in new_cls.__dict__:
-            new_cls.dict = cls.asdict
-        if dict and not hasattr(new_cls, '__getstate__'):
-            new_cls.__getstate__ = cls.getstate_func
-        if dict and not hasattr(new_cls, '__setstate__'):
-            new_cls.__setstate__ = cls.setstate_func
+        if dict:
+            if 'dict' not in new_cls.__dict__:
+                new_cls.dict = cls.asdict
+            if not hasattr(new_cls, '__getstate__'):
+                new_cls.__getstate__ = cls.getstate_func
+            if not hasattr(new_cls, '__setstate__'):
+                new_cls.__setstate__ = cls.setstate_func
+            if not hasattr(new_cls, 'json'):
+                new_cls.json = cls.json
+            if not hasattr(new_cls, 'from_json'):
+                new_cls.from_json = cls.from_json
 
         if new_cls.__hash__ == object.__hash__:
             new_cls.__hash__ = cls.hash_func
@@ -444,6 +449,16 @@ class DataclassMeta(type):
         # Set the given state values
         for k, v in state.items():
             setattr(self, k, v)
+
+    @staticmethod
+    def json(self):
+        return dumps(self)
+
+    @staticmethod
+    def from_json(text):
+        if isinstance(text, bytes):
+            text = text.decode()
+        return loads(text)
 
 
 class DataClass(metaclass=DataclassMeta):
