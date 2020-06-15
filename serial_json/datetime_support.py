@@ -170,7 +170,8 @@ def date_property(attr, allow_none=True, default=MISSING, default_factory=MISSIN
     Returns:
         property (field_property): Dataclass field property for a date.
     """
-    attr = '_' + attr
+    if not attr.startswith('_'):
+        attr = '_' + attr
     typeref = Union[datetime.date, str]
     if allow_none:
         typeref = Union[datetime.date, str, None]
@@ -205,7 +206,8 @@ def time_property(attr, allow_none=True, default=MISSING, default_factory=MISSIN
     Returns:
         property (field_property): Dataclass field property for a time.
     """
-    attr = '_' + attr
+    if not attr.startswith('_'):
+        attr = '_' + attr
     typeref = Union[datetime.time, str]
     if allow_none:
         typeref = Union[datetime.time, str, None]
@@ -240,7 +242,8 @@ def datetime_property(attr, allow_none=True, default=MISSING, default_factory=MI
     Returns:
         property (field_property): Dataclass field property for a datetime.
     """
-    attr = '_' + attr
+    if not attr.startswith('_'):
+        attr = '_' + attr
     typeref = Union[datetime.datetime, str]
     if allow_none:
         typeref = Union[datetime.datetime, str, None]
@@ -363,7 +366,8 @@ def seconds_property(attr='seconds'):
     Returns:
         property (field_property): Property that when given a float will set seconds and milliseconds.
     """
-    attr = '_' + attr
+    if not attr.startswith('_'):
+        attr = '_' + attr
 
     def fget(self) -> int:
         return getattr(self, attr, 0)
