@@ -1,3 +1,4 @@
+# https://developers.google.com/calendar/create-events
 import copy
 from inspect import signature, Signature, Parameter
 from typing import Any, Callable
@@ -19,6 +20,8 @@ class field(object):
     Args:
         default (object/Any): Default value on init.
         default_factory (function/Callable): Function that returns the default value.
+        required (bool)[None]: If None required if init and no defaults.
+            This makes the __init__ require a positional, keyword, or default value.
         repr (bool)[True]: Include this field in the repr.
         hash (bool)[None]: If True include in __hash__. If None include in __hash__ if compare is True.
         init (bool)[True]: Include this field in the __init__. If False set the value from the default value.
@@ -30,14 +33,15 @@ class field(object):
         name (str)[MISSING]: Field variable name. This is automatically set.
         type (object/type): Field type. Used in __init__ doc string and annotation.
     """
-    def __init__(self, default=MISSING, default_factory=MISSING, repr=True, hash=None, init=True, compare=True,
-                 metadata=None, dict=True, skip_dict=MISSING, skip_repr=MISSING, name=MISSING, type=Any, doc='',
-                 **kwargs):
+    def __init__(self, default=MISSING, default_factory=MISSING, required=None, repr=True, hash=None, init=True,
+                 compare=True, metadata=None, dict=True, skip_dict=MISSING, skip_repr=MISSING, name=MISSING, type=Any,
+                 doc='', **kwargs):
         super().__init__()
         self.__doc__ = doc
 
         self.default = default
         self.default_factory = default_factory
+        self.required = required
         self.repr = repr
         self.skip_repr = skip_repr
         self.hash = hash
@@ -49,6 +53,9 @@ class field(object):
         self.type = type
         self.name = name
 
+        if self.required is None:
+            self.required = not self.has_default()
+
         # Save other given attributes
         for k, v in kwargs.items():
             setattr(self, k, v)
@@ -59,8 +66,16 @@ class field(object):
             self.name = n
 
     def is_required(self):
+        """Return if this field is required to be set in the init with a positional, keyword, or default value."""
+        return self.init and self.required
+
+    def is_positional(self):
         """Return if this argument is required in init."""
-        return self.init and self.default == MISSING and self.default_factory == MISSING
+        return self.is_required() and not self.has_default()
+
+    def has_default(self):
+        """Return if this field has a default."""
+        return self.default != MISSING or self.default_factory != MISSING
 
     def set_default(self, default):
         """Set the default value."""
@@ -133,12 +148,15 @@ class field(object):
             return typ
 
     def as_parameter(self):
-        kind = Parameter.POSITIONAL_ONLY
         default = Parameter.empty
         annotation = self.get_type()
-        if not self.is_required():
+        if self.is_positional():
+            kind = Parameter.POSITIONAL_ONLY
+        elif self.has_default():
             kind = Parameter.POSITIONAL_OR_KEYWORD
             default = self.get_default_str()
+        else:
+            kind = Parameter.VAR_KEYWORD
 
         return Parameter(name=self.name, kind=kind, default=default, annotation=annotation)
 
@@ -146,14 +164,15 @@ class field(object):
 class field_property(field):
     """Field that works as a property."""
     def __init__(self, fget=None, fset=None, fdel=None, doc='',
-                 default=MISSING, default_factory=MISSING, repr=True, hash=None, init=True, compare=True,
-                 metadata=None, dict=True, skip_dict=MISSING, skip_repr=MISSING, name=MISSING, type=None, **kwargs):
+                 default=MISSING, default_factory=MISSING, required=False, repr=True, hash=None, init=True,
+                 compare=True, metadata=None, dict=True, skip_dict=MISSING, skip_repr=MISSING, name=MISSING, type=None,
+                 **kwargs):
         self.fget = fget
         self.fset = fset
         self.fdel = fdel
-        super().__init__(default=default, default_factory=default_factory, repr=repr, hash=hash, init=init,
-                         compare=compare, metadata=metadata, dict=dict, skip_dict=skip_dict, skip_repr=skip_repr,
-                         name=name, type=type, doc=doc, **kwargs)
+        super().__init__(default=default, default_factory=default_factory, required=required, repr=repr, hash=hash,
+                         init=init, compare=compare, metadata=metadata, dict=dict, skip_dict=skip_dict,
+                         skip_repr=skip_repr, name=name, type=type, doc=doc, **kwargs)
 
     def __get__(self, obj, objtype=None):
         if obj is None:
@@ -281,10 +300,10 @@ class DataclassMeta(type):
         # Make fields
         for name, typ in cls.__annotations__.items():
             if name not in cls.__fields__:
-                f = cls.__dict__.get(name, None)
+                f = cls.__dict__.get(name, MISSING)
                 if not isinstance(f, field):
-                    if name in cls.__dict__:
-                        f = cls.__fields__.get(name, field(default=cls.__dict__[name], type=typ))
+                    if f != MISSING:
+                        f = cls.__fields__.get(name, field(default=f, type=typ))
                     else:
                         f = cls.__fields__.get(name, field(default=MISSING, type=typ))
                 else:
@@ -297,10 +316,10 @@ class DataclassMeta(type):
         def args():
             for f in cls.__fields__.values():
                 if f.init:
-                    if f.is_required():
+                    if f.is_positional():
                         yield '{name} ({type}): {name} value\n'.format(
                                 name=f.name, type=f.get_type_str(), default=f.get_default_str())
-                    else:
+                    elif f.has_default():
                         yield '{name} ({type})[{default}]: {name} value\n'.format(
                                 name=f.name, type=f.get_type_str(), default=f.get_default_str())
 
@@ -320,9 +339,9 @@ class DataclassMeta(type):
     #     def args():
     #         for f in new_cls.__fields__.values():
     #             if f.init:
-    #                 if f.is_required():
+    #                 if f.is_positional():
     #                     yield '{name}: {type}'.format(name=f.name, type=f.get_type_str())
-    #                 else:
+    #                 elif f.has_default():
     #                     yield '{name}: {type} = MISSING'.format(name=f.name, type=f.get_type_str())
     #
     #     def init_kwargs():
@@ -361,8 +380,10 @@ class DataclassMeta(type):
                 if kwargs[f.name] == MISSING:
                     kwargs[f.name] = f.get_default_value(self)
                 setattr(self, f.name, kwargs.pop(f.name))
-            else:
+            elif f.has_default():  # If no default the field is not set on init
                 setattr(self, f.name, f.get_default_value(self))
+            elif f.is_required():
+                raise TypeError('missing required argument {}'.format(f.name))
 
         # Check left over keyword arguments:
         if not self.__dataclass_properties__.get('allow_extra_init', True) and len(kwargs) > 0:
@@ -414,7 +435,7 @@ class DataclassMeta(type):
         # Copy may improperly set a default skip_dict values to the field object and not the default.
         # The set defaults below fixes issue with copy.copy on field(skip_dict=default_value)
         for f in self.__fields__.values():
-            if not f.is_required():
+            if f.has_default():
                 # Only set fields that have a default
                 setattr(self, f.name, f.get_default_value(self))
 

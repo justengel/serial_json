@@ -28,8 +28,28 @@ def test_datetime():
     assert serial_json.loads(serial_json.dumps(d)) == d
 
 
+def test_dataclass_datetime_property():
+    import time
+    import datetime
+    from serial_json import dataclass, datetime_property
+
+    @dataclass
+    class Record:
+        name: str
+        created_on: datetime.datetime = datetime_property('created_on', default_factory=datetime.datetime.now)
+
+    before = datetime.datetime.now()
+    time.sleep(1)
+    rec = Record('Hello')
+    assert rec.name == 'Hello'
+    assert rec.created_on is not None
+    assert rec.created_on > before
+
+
 if __name__ == '__main__':
     test_date()
     test_time()
     test_datetime()
+    test_dataclass_datetime_property()
+
     print('All tests finished successfully!')

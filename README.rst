@@ -141,3 +141,51 @@ Dataclasses can be used through inheritance with `DataClass` or through the deco
     assert l2.point == Point(1, 1, 1)
     assert l2.point2 == Point(2, 2, 0)
     assert str(l2) == 'Location(name=111, point=Point(x=1, y=1, z=1), point2=Point(x=2, y=2))'  # skip repr
+
+
+datetime property
+-----------------
+
+Additional datetime, date, time, and weekdays properties are available
+
+.. code-block:: python
+
+    import datetime
+    from serial_json import dataclass, datetime_property, Weekdays, weekdays_property, weekdays_attr_property
+
+    @dataclass
+    class Item:
+        created_on: datetime.datetime = datetime_property('created_on', default_factory=datetime.datetime.now)
+        weekdays: Weekdays = weekdays_property('weekdays', default=Weekdays())
+
+        sunday = weekdays_attr_property('weekdays', 'sunday')
+        monday = weekdays_attr_property('weekdays', 'monday')
+        tuesday = weekdays_attr_property('weekdays', 'tuesday')
+        wednesday = weekdays_attr_property('weekdays', 'wednesday')
+        thursday = weekdays_attr_property('weekdays', 'thursday')
+        friday = weekdays_attr_property('weekdays', 'friday')
+        saturday = weekdays_attr_property('weekdays', 'saturday')
+
+    it = Item(weekdays='monday')
+    assert it.created_on is not None
+    assert it.created_on >= datetime.datetime.today().replace(hour=0)
+    assert 'monday' in it.weekdays
+    assert 'sunday' not in it.weekdays
+    assert it.monday
+    assert not it.sunday
+
+    it = Item(weekdays=[], friday=True)
+    assert it.created_on is not None
+    assert it.created_on >= datetime.datetime.today().replace(hour=0)
+    assert 'friday' in it.weekdays
+    assert 'sunday' not in it.weekdays
+    assert it.friday
+    assert not it.sunday
+
+    it = Item(sunday=False)
+    assert it.created_on is not None
+    assert it.created_on >= datetime.datetime.today().replace(hour=0)
+    assert 'friday' in it.weekdays, it.weekdays
+    assert 'sunday' not in it.weekdays, it.weekdays
+    assert it.friday
+    assert not it.sunday

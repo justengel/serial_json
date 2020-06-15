@@ -276,7 +276,7 @@ def test_dataclass_nested():
     from serial_json import dumps, loads, dataclass, field_property
 
     @dataclass
-    class MyClass:
+    class Point:
         x: int
         y: int
 
@@ -289,15 +289,35 @@ def test_dataclass_nested():
             self._z = value
 
     @dataclass
-    class MyClass2:
+    class Location:
         name: str
-        point: MyClass = MyClass(0, 0, 0)
+        point: Point = Point(0, 0, 0)
 
-    m2 = MyClass2('hello')
+        @field_property(default=Point(1, 1, 0))
+        def point2(self):
+            return self._point2
+
+        @point2.setter
+        def point2(self, value):
+            if isinstance(value, (list, tuple)) and len(value) >= 2:
+                value = Point(*value)
+            elif isinstance(value, dict):
+                value = Point(**value)
+
+            if not isinstance(value, Point):
+                raise TypeError('Given value must be a Point!')
+            self._point2 = value
+
+    m2 = Location('hello')
     assert m2.name == 'hello'
     assert m2.point.x == 0
     assert m2.point.y == 0
     assert m2.point.z == 0
+
+    assert m2.point2 == Point(1, 1, 0)
+    assert m2.point2.x == 1
+    assert m2.point2.y == 1
+    assert m2.point2.z == 0
 
     m2.point.x = 1
     m2.point.y = 1
@@ -307,15 +327,16 @@ def test_dataclass_nested():
     assert m2.point.z == 1
 
     # Check that class default did not change
-    assert m2.point != MyClass2.point
-    assert m2.point.x != MyClass2.point.x
-    assert m2.point.y != MyClass2.point.y
-    assert m2.point.z != MyClass2.point.z
+    assert m2.point != Location.point
+    assert m2.point.x != Location.point.x
+    assert m2.point.y != Location.point.y
+    assert m2.point.z != Location.point.z
 
     text = dumps(m2)
     assert text == '{"name": "hello", "point": {"x": 1, "y": 1, "z": 1, ' \
-                   '"SERIALIZER_TYPE": "test_dataclass_nested.<locals>.MyClass"}, ' \
-                   '"SERIALIZER_TYPE": "test_dataclass_nested.<locals>.MyClass2"}', text
+                   '"SERIALIZER_TYPE": "test_dataclass_nested.<locals>.Point"}, "point2": {"x": 1, "y": 1, "z": 0, ' \
+                   '"SERIALIZER_TYPE": "test_dataclass_nested.<locals>.Point"}, ' \
+                   '"SERIALIZER_TYPE": "test_dataclass_nested.<locals>.Location"}', text
 
     loaded = loads(text)
     assert loaded == m2
