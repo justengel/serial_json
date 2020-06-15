@@ -332,7 +332,9 @@ class DataclassMeta(type):
     @staticmethod
     def make_init_signature(cls):
         self_param = Parameter(name='self', kind=Parameter.POSITIONAL_ONLY)  # First param must be self
-        return Signature(parameters=[self_param] + [f.as_parameter() for f in cls.__fields__.values()])
+        params = [self_param] + [f.as_parameter() for f in cls.__fields__.values()]
+        params = sorted(params, key=lambda p: p.kind)
+        return Signature(parameters=params)
 
     # @classmethod
     # def make_init(cls, new_cls):
