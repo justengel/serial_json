@@ -1,4 +1,3 @@
-# https://developers.google.com/calendar/create-events
 import copy
 from inspect import signature, Signature, Parameter
 from typing import Any, Callable
@@ -207,62 +206,37 @@ class field_property(field):
 
 
 class DataclassMeta(type):
-    def __new__(cls, name, bases, dct):
-        new_cls = super().__new__(cls, name, bases, dct)
-        return cls.dataclass(new_cls)
+    def __new__(mcs, name, bases, dct):
+
+        mcs.make_fields(name, bases, dct)
+        mcs.make_funcs(name, bases, dct)
+
+        new_cls = super().__new__(mcs, name, bases, dct)
+
+        # Register for serialization
+        register(new_cls)
+
+        return new_cls
 
     @classmethod
-    def dataclass(cls, new_cls=None, init=True, repr=True, eq=True, order=False, unsafe_hash=False, dict=True,
-                       frozen=False, **kwargs):
+    def dataclass(mcs, new_cls=None, init=True, repr=True, eq=True, order=False, unsafe_hash=False, dict=True,
+                  frozen=False, **kwargs):
         """Return the given class as a dataclass."""
         if new_cls is None:
             def decorator(new_cls):
-                return cls.dataclass(new_cls, init=init, repr=repr, eq=eq, order=order, unsafe_hash=unsafe_hash,
-                                          dict=dict, frozen=frozen, **kwargs)
+                return mcs.dataclass(new_cls, init=init, repr=repr, eq=eq, order=order, unsafe_hash=unsafe_hash,
+                                     dict=dict, frozen=frozen, **kwargs)
             return decorator
 
-        cls.make_fields(new_cls)
+        dct = mcs.make_fields(new_cls.__name__, new_cls.__bases__, OrderedDict(new_cls.__dict__))
+        mcs.make_funcs(new_cls.__name__, new_cls.__bases__, dct, init=init, repr=repr, eq=eq, order=order,
+                       unsafe_hash=unsafe_hash, dict=dict, frozen=frozen, **kwargs)
 
-        if init and new_cls.__init__ == object.__init__ and not getattr(new_cls.__init__, '__is_dataclass__', False):
-            # Set the __init__ function
-            def __init__(self, *args, **kwargs):
-                return cls.init_func(self, *args, **kwargs)
-            __init__.__is_dataclass__ = True
-            new_cls.__init__ = __init__
-
-        if init and getattr(new_cls.__init__, '__is_dataclass__', False):
-            # Make the signature and doc string for the __init__ function
-            try:
-                new_cls.__init__.__signature__ = cls.make_init_signature(new_cls)
-                doc = cls.make_init_docs(new_cls)
-                if not new_cls.__doc__:
-                    new_cls.__doc__ = doc
-                new_cls.__init__.__doc__ = doc
-            except AttributeError:
-                pass
-
-        if dict:
-            if 'dict' not in new_cls.__dict__:
-                new_cls.dict = cls.asdict
-            if not hasattr(new_cls, '__getstate__'):
-                new_cls.__getstate__ = cls.getstate_func
-            if not hasattr(new_cls, '__setstate__'):
-                new_cls.__setstate__ = cls.setstate_func
-            if not hasattr(new_cls, 'json'):
-                new_cls.json = cls.json
-            if not hasattr(new_cls, 'from_json'):
-                new_cls.from_json = cls.from_json
-
-        if new_cls.__hash__ == object.__hash__:
-            new_cls.__hash__ = cls.hash_func
-
-        if eq and new_cls.__eq__ == object.__eq__:
-            new_cls.__eq__ = cls.compare_func
-
-        if repr and new_cls.__repr__ == object.__repr__:
-            new_cls.__repr__ = cls.repr_func
-
-        new_cls.__is_frozen__ = frozen
+        # Update the classes values
+        for k, v in dct.items():
+            if k not in new_cls.__dict__ or v != new_cls.__dict__[k]:
+                setattr(new_cls, k, v)
+        # new_cls.__dict__.update(dct)  # Cannot modify mappingproxy
 
         # Register for serialization
         register(new_cls)
@@ -270,56 +244,123 @@ class DataclassMeta(type):
         return new_cls
 
     @staticmethod
-    def make_fields(cls):
-        bases = cls.__bases__
+    def make_fields(name, bases, dct, **kwargs):
+        nd = {}
+        if bases is not None:
+            for base in reversed(bases):
+                nd.update(base.__dict__)
+        else:
+            bases = tuple()
+        nd.update(dct)
 
         # Setup annotations and fields
-        if not hasattr(cls, '__annotations__'):
-            cls.__annotations__ = OrderedDict()
+        annotate = nd.get('__annotations__', None)
+        if annotate is None:
+            dct['__annotations__'] = annotate = OrderedDict()
 
-        if not hasattr(cls, '__fields__'):
-            cls.__fields__ = OrderedDict()
-        elif any(getattr(base, '__fields__', {}) is cls.__fields__ for base in bases):
-            cls.__fields__ = cls.__fields__.copy()
+        fields = nd.get('__fields__', None)
+        if fields is None:
+            dct['__fields__'] = fields = OrderedDict()
+        elif any(getattr(base, '__fields__', {}) is fields for base in bases):
+            dct['__fields__'] = fields = fields.copy()
 
-        if not hasattr(cls, '__dataclass_properties__'):
-            cls.__dataclass_properties__ = {'allow_extra_init': True}
-        elif any(getattr(base, '__dataclass_properties__', {}) is cls.__dataclass_properties__ for base in bases):
-            cls.__dataclass_properties__ = cls.__dataclass_properties__.copy()
+        dc_prop = nd.get('__dataclass_properties__', None)
+        if dc_prop is None:
+            dct['__dataclass_properties__'] = dc_prop = {'allow_extra_init': True}
+        elif any(getattr(base, '__dataclass_properties__', {}) is dc_prop for base in bases):
+            dct['__dataclass_properties__'] = dc_prop = dc_prop.copy()
 
         # Make annotations
-        for name, attr in cls.__dict__.items():
+        for name, attr in nd.items():
             if name.startswith('__'):
                 continue
 
-            if name in cls.__fields__ and name not in cls.__annotations__:
-                cls.__annotations__[name] = cls.__fields__[name].get_type()
-            elif isinstance(attr, field) and name not in cls.__annotations__:
-                cls.__annotations__[name] = attr.get_type()
-            elif isinstance(attr, property) and name not in cls.__annotations__:
+            if name in fields and name not in annotate:
+                annotate[name] = fields[name].get_type()
+            elif isinstance(attr, field) and name not in annotate:
+                annotate[name] = attr.get_type()
+            elif isinstance(attr, property) and name not in annotate:
                 ret_typ = signature(attr.fget).return_annotation
                 if ret_typ == Signature.empty:
                     ret_typ = Any
-                cls.__annotations__[name] = ret_typ
+                annotate[name] = ret_typ
 
         # Make fields
-        for name, typ in cls.__annotations__.items():
-            if name not in cls.__fields__:
-                f = cls.__dict__.get(name, MISSING)
+        for name, typ in annotate.items():
+            if name not in fields:
+                f = nd.get(name, MISSING)
                 if not isinstance(f, field):
                     if f != MISSING:
-                        f = cls.__fields__.get(name, field(default=f, type=typ))
+                        f = fields.get(name, field(default=f, type=typ))
                     else:
-                        f = cls.__fields__.get(name, field(default=MISSING, type=typ))
+                        f = fields.get(name, field(default=MISSING, type=typ))
                 else:
                     f.type = typ
-                cls.__fields__[name] = f
+                fields[name] = f
                 f.set_name(name, replace=False)
 
+        return dct
+
+    @classmethod
+    def make_funcs(mcs, name, bases, dct, init=True, repr=True, eq=True, order=False, unsafe_hash=False, dict=True,
+                   frozen=False, **kwargs):
+        nd = {}
+        if bases is not None:
+            for base in reversed(bases):
+                nd.update(base.__dict__)
+        else:
+            bases = tuple()
+        nd.update(dct)
+
+        init_func = nd.get('__init__', object.__init__)
+        if init and init_func == object.__init__ and not getattr(init_func, '__is_dataclass__', False):
+            # Set the __init__ function
+            def __init__(self, *args, **kwargs):
+                return mcs.init_func(self, *args, **kwargs)
+            __init__.__is_dataclass__ = True
+            dct['__init__'] = init_func = __init__
+
+        if init and getattr(init_func, '__is_dataclass__', False):
+            # Make the signature and doc string for the __init__ function
+            try:
+                fields = nd.get('__fields__', {})
+                init_func.__signature__ = mcs.make_init_signature(fields)
+                doc = mcs.make_init_docs(name, fields)
+                if not nd.get('__doc__', ''):
+                    dct['__doc__'] = doc
+                init_func.__doc__ = doc
+            except (KeyError, AttributeError):
+                pass
+
+        if dict:
+            if 'dict' not in nd:
+                dct['dict'] = mcs.asdict
+            if '__getstate__' not in nd:
+                dct['__getstate__'] = mcs.getstate_func
+            if '__setstate__' not in nd:
+                dct['__setstate__'] = mcs.setstate_func
+            if 'json' not in nd:
+                dct['json'] = mcs.json_func
+            if 'from_json' not in nd:
+                dct['from_json'] = mcs.from_json_func
+
+        if nd.get('__hash__', object.__hash__) == object.__hash__:
+            dct['__hash__'] = mcs.hash_func
+
+        if eq and nd.get('__eq__', object.__eq__) == object.__eq__:
+            dct['__eq__'] = mcs.compare_func
+
+        if repr and nd.get('__repr__', object.__repr__) == object.__repr__:
+            dct['__repr__'] = mcs.repr_func
+
+        dct['__is_frozen__'] = frozen
+
+        return dct
+
     @staticmethod
-    def make_init_docs(cls):
+    def make_init_docs(name, fields):
         def args():
-            for f in cls.__fields__.values():
+            for f in fields.values():
                 if f.init:
                     if f.is_positional():
                         yield '{name} ({type}): {name} value\n'.format(
@@ -332,49 +373,14 @@ class DataclassMeta(type):
                "    Data object {}.\n" \
                "\n" \
                "    Args:\n" \
-               "        {}\n".format(cls.__name__, '        '.join(args()))
+               "        {}\n".format(name, '        '.join(args()))
 
     @staticmethod
-    def make_init_signature(cls):
+    def make_init_signature(fields):
         self_param = Parameter(name='self', kind=Parameter.POSITIONAL_ONLY)  # First param must be self
-        params = [self_param] + [f.as_parameter() for f in cls.__fields__.values()]
+        params = [self_param] + [f.as_parameter() for f in fields.values()]
         params = sorted(params, key=lambda p: p.kind)
         return Signature(parameters=params)
-
-    # @classmethod
-    # def make_init(cls, new_cls):
-    #     def args():
-    #         for f in new_cls.__fields__.values():
-    #             if f.init:
-    #                 if f.is_positional():
-    #                     yield '{name}: {type}'.format(name=f.name, type=f.get_type_str())
-    #                 elif f.has_default():
-    #                     yield '{name}: {type} = MISSING'.format(name=f.name, type=f.get_type_str())
-    #
-    #     def init_kwargs():
-    #         for f in new_cls.__fields__.values():
-    #             if f.init:
-    #                 yield '{name}={name}'.format(name=f.name)
-    #
-    #     txt = '\n'.join(('def __init__(self, {}, **kwargs):'.format(', '.join(args())),
-    #                      '    """{}"""'.format(cls.make_init_docs(new_cls)),
-    #                      '    dataclass_cls.init_func(self, {}, **kwargs)'.format(', '.join(init_kwargs())),
-    #                      '    ',
-    #                      '    if hasattr(self, "__post_init__"):',
-    #                      '        self.__post_init__()', ''))
-    #
-    #     if new_cls.__module__ in sys.modules:
-    #         glbls = sys.modules[new_cls.__module__].__dict__
-    #     else:
-    #         glbls = {}
-    #
-    #     ns = {}
-    #     glbls['dataclass_cls'] = DataclassMeta
-    #     glbls['MISSING'] = MISSING
-    #     exec(txt, glbls, ns)
-    #     init = ns['__init__']
-    #     init.__is_dataclass__ = True
-    #     return init
 
     @staticmethod
     def init_func(self, *args, **kwargs):
@@ -451,11 +457,11 @@ class DataclassMeta(type):
             setattr(self, k, v)
 
     @staticmethod
-    def json(self):
+    def json_func(self):
         return dumps(self)
 
-    @staticmethod
-    def from_json(text):
+    @classmethod
+    def from_json_func(cls, text):
         if isinstance(text, bytes):
             text = text.decode()
         return loads(text)
