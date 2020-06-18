@@ -151,9 +151,18 @@ def datetime_decode(obj):
     return make_datetime(obj['value'])
 
 
+def timedelta_encode(obj):
+    return {'days': obj.days, 'seconds': obj.seconds, 'microseconds': obj.microseconds}
+
+
+def timedelta_decode(obj):
+    return datetime.timedelta(days=obj['days'], seconds=obj['seconds'], microseconds=obj['microseconds'])
+
+
 register(datetime.date, date_encode, date_decode)
 register(datetime.time, time_encode, time_decode)
 register(datetime.datetime, datetime_encode, datetime_decode)
+register(datetime.timedelta, timedelta_encode, timedelta_decode)
 
 
 # ========= Properties ==========
