@@ -1,5 +1,5 @@
 name = 'serial_json'
-version = '1.2.3'
+version = '1.2.4'
 description = 'Custom json serialization support.'
 url = 'https://github.com/justengel/serial_json'
 author = 'Justin Engel'
