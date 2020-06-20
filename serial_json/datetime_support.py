@@ -366,7 +366,7 @@ def timedelta_attr_property(required=False, **kwargs):
                           doc='Interval from the set time values', required=required, **kwargs)
 
 
-def seconds_property(attr='seconds'):
+def seconds_property(attr='seconds', **kwargs):
     """Property for a seconds attribute to turn floating points into milliseconds.
 
     Args:
@@ -389,4 +389,6 @@ def seconds_property(attr='seconds'):
 
         setattr(self, attr, int(value))
 
-    return field_property(fget, fset, doc='Seconds in time. If float also set milliseconds', default=0)
+    if kwargs.get('default', MISSING) == MISSING and kwargs.get('default_factory', MISSING) == MISSING:
+        kwargs['default'] = 0
+    return field_property(fget, fset, doc='Seconds in time. If float also set milliseconds', **kwargs)
