@@ -101,7 +101,7 @@ def test_dataclass_field_property():
 
 
 def test_dataclass_inheritance():
-    from serial_json.dataclasses import dataclass, field_property
+    from serial_json.dataclasses import DataClass, dataclass, field_property
 
     @dataclass
     class MyClass:
@@ -143,6 +143,25 @@ def test_dataclass_inheritance():
     assert m.y == 2
     assert m.z == 3
     assert m.w == 4
+
+    # Test inheritance override
+    class Point(DataClass):
+        x: int = 0
+        y: int = 1
+
+    p = Point()
+    assert isinstance(p.x, int) and p.x == 0
+    assert isinstance(p.y, int) and p.y == 1
+
+
+    class Point2(Point):
+        y: float = 2.0
+        z: float = 3.0
+
+    p = Point2()
+    assert isinstance(p.x, int) and p.x == 0
+    assert isinstance(p.y, float) and p.y == 2.0
+    assert isinstance(p.z, float) and p.z == 3.0
 
 
 def test_dataclass_class():

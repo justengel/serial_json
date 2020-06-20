@@ -245,59 +245,55 @@ class DataclassMeta(type):
 
     @staticmethod
     def make_fields(name, bases, dct, **kwargs):
-        nd = {}
-        if bases is not None:
-            for base in reversed(bases):
-                nd.update(base.__dict__)
-        else:
-            bases = tuple()
-        nd.update(dct)
+        nd = dct.copy()
 
         # Setup annotations and fields
-        annotate = nd.get('__annotations__', None)
-        if annotate is None:
-            dct['__annotations__'] = annotate = OrderedDict()
-
-        fields = nd.get('__fields__', None)
-        if fields is None:
-            dct['__fields__'] = fields = OrderedDict()
-        elif any(getattr(base, '__fields__', {}) is fields for base in bases):
-            dct['__fields__'] = fields = fields.copy()
-
-        dc_prop = nd.get('__dataclass_properties__', None)
-        if dc_prop is None:
-            dct['__dataclass_properties__'] = dc_prop = {'allow_extra_init': True}
-        elif any(getattr(base, '__dataclass_properties__', {}) is dc_prop for base in bases):
-            dct['__dataclass_properties__'] = dc_prop = dc_prop.copy()
+        annotate = nd.get('__annotations__', OrderedDict())
+        fields = nd.get('__fields__', OrderedDict())
+        dc_prop = nd.get('__dataclass_properties__', {'allow_extra_init': True})
 
         # Make annotations
-        for name, attr in nd.items():
-            if name.startswith('__'):
+        for n, attr in nd.items():
+            if n.startswith('__') and n.endswith('__'):
                 continue
 
-            if name in fields and name not in annotate:
-                annotate[name] = fields[name].get_type()
-            elif isinstance(attr, field) and name not in annotate:
-                annotate[name] = attr.get_type()
-            elif isinstance(attr, property) and name not in annotate:
+            if n in fields and n not in annotate:
+                annotate[n] = fields[n].get_type()
+            elif isinstance(attr, field) and n not in annotate:
+                annotate[n] = attr.get_type()
+            elif isinstance(attr, property) and n not in annotate:
                 ret_typ = signature(attr.fget).return_annotation
                 if ret_typ == Signature.empty:
                     ret_typ = Any
-                annotate[name] = ret_typ
+                annotate[n] = ret_typ
 
         # Make fields
-        for name, typ in annotate.items():
-            if name not in fields:
-                f = nd.get(name, MISSING)
+        for n, typ in annotate.items():
+            if n not in fields:
+                f = nd.get(n, MISSING)
                 if not isinstance(f, field):
                     if f != MISSING:
-                        f = fields.get(name, field(default=f, type=typ))
+                        f = fields.get(n, field(default=f, type=typ))
                     else:
-                        f = fields.get(name, field(default=MISSING, type=typ))
+                        f = fields.get(n, field(default=MISSING, type=typ))
                 else:
                     f.type = typ
-                fields[name] = f
-                f.set_name(name, replace=False)
+                fields[n] = f
+                f.set_name(n, replace=False)
+
+        aa, af, ap = OrderedDict(), OrderedDict(), OrderedDict()
+        for base in reversed(bases):
+            aa.update(base.__dict__.get('__annotations__', {}))
+            af.update(base.__dict__.get('__fields__', {}))
+            ap.update(base.__dict__.get('__dataclass_properties__', {}))
+
+        aa.update(annotate)
+        af.update(fields)
+        ap.update(dc_prop)
+
+        dct['__annotations__'] = aa
+        dct['__fields__'] = af
+        dct['__dataclass_properties__'] = ap
 
         return dct
 
